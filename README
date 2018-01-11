@@ -1,0 +1,5 @@
+
+An analyzer for ECG graphs. To run:
+
+cd ./src
+python AnalyzeECG 2.2.1.py 
