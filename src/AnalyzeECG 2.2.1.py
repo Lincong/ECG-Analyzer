@@ -152,8 +152,8 @@ class AllRows(object):
             return self.inputXY
         else:
             return self.invertedInputXY
-            # return self.inputXY
 
+    # adjust the position of these XY rows
     def adjustRows(self, rows):
         rows = sorted(rows)
         # shift the lowest line
@@ -205,6 +205,11 @@ class OneRowXY(object):
             ys = []
         if xs is None:
             xs = []
+
+        if len(xs) != len(ys):
+            print 'This is weird. A row should have equal number of Xs and Ys'
+            assert False
+
         self.xs = xs
         self.ys = ys
         self.yMin = min(ys)
@@ -592,11 +597,14 @@ def drawRecCallBack(eclick, erelease):
     deltaX = abs(erelease.xdata - eclick.xdata)
     deltaY = abs(erelease.ydata - eclick.ydata)
 
+    # if invalid marking, don't save any data
     if deltaX is 0:
         remindWindow('Error!', 'Invalid rectange. x distance too small')
+        return
 
     if deltaY is 0:
         remindWindow('Error!', 'Invalid rectange. y distance too small')
+        return
 
     rectPatch = patches.Rectangle((eclick.xdata, eclick.ydata), deltaX, deltaY, edgecolor='red', fill=False)
     mainAx.add_patch(rectPatch)
@@ -672,9 +680,19 @@ def ROICallBack(eclick, erelease):
         remindWindow('Wait...', 'Check \'Enable Marker Placement\' to enable this feature')
         return
 
-    # draw rectangle
-    deltaX = abs(erelease.xdata - eclick.xdata)
-    deltaY = abs(erelease.ydata - eclick.ydata)
+    x_min = min(erelease.xdata, eclick.xdata)
+    x_max = max(erelease.xdata, eclick.xdata)
+
+    # check if x_min and x_max are valid
+    mark_ROI_regions(x_min, x_max)
+
+def mark_ROI_regions(x_min, x_max):
+    if x_min >= x_max:
+        remindWindow('Error!', 'Invalid rectange. x distance too small')
+        return
+
+    # find which region is it
+
 
 
 ROIHandle = RectangleSelector(mainAx, ROICallBack, drawtype='box')
@@ -785,6 +803,7 @@ def drawHorizontalLineCallback(event):
     if h_lines.HorizontalLinesReady():
         # automatically move to the next state
         selectedOp.set(userModes[STEP_FIVE])
+        selectOpCallBack(None)
         return
 
     # set the current axis to the main axis
@@ -816,6 +835,12 @@ def selectOpCallBack(event):
         enableStep(STEP_FOUR)
 
     else: # ROI
+        # check if all previous steps are ready
+        unreadySteps = getUnreadySteps()
+        if len(unreadySteps) != 0:
+            remindWindow('Wait...', 'You have to finish all previous steps before marking ROI')
+            return
+
         enableStep(STEP_FIVE)
 
 
@@ -1097,6 +1122,9 @@ if __name__ == "__main__":
     enableDrawingButton = Tk.Checkbutton(master=root, text="Enable Marker Placement", variable=enableCheckBoxState, command=enableCallBack)
     enableDrawingButton.pack(side=Tk.LEFT)
 
+    #######################
+    # drop-down menue
+    #######################
     dropDownMenu = Tk.OptionMenu(root, selectedOp, userModes[STEP_ONE], userModes[STEP_TWO], userModes[STEP_THREE], userModes[STEP_FOUR], userModes[STEP_FIVE], command=selectOpCallBack)
     dropDownMenu.pack(side=Tk.LEFT)
 
