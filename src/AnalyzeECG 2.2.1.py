@@ -43,7 +43,7 @@ VerticalLineNum = 5
 OpEnabled = 1
 
 userModes = ['Mark calibration box', 'Mark lead start/end', 'Mark Sync time in 4 columns',
-             'Mark 3 zero reference voltages']
+             'Mark 3 zero reference voltages', 'Mark ROI']
 
 root = Tk.Tk()
 root.wm_title("ECG Analyzer 2.0")
@@ -62,7 +62,7 @@ radioButtonState.set(1)  # initialize
 enableCheckBoxState = Tk.IntVar()
 enableCheckBoxState.set(1)  # allow drawing
 selectedOp = Tk.StringVar()
-selectedOp.set(userModes[0])
+selectedOp.set(userModes[STEP_ONE])
 drawVLineHandle = None
 drawSyncLineHandle = None
 drawHorizontalLineHandle = None
@@ -348,6 +348,7 @@ class HLines(object):
     currYs = None
     maxHlineNum = 3
 
+
     def __init__(self):
         self.currYs = Queue.LifoQueue()
         # self.maxVerticalLineNUm = VerticalLineNum
@@ -489,7 +490,6 @@ def remindWindow(title, content):
     button.pack()
     return
 
-
 # rowDistance: distance between the Y max and Y min of two adjacent rows
 def plotRawDataFromDir(dir_name, rowDistance=20):
     allInputFiles = []
@@ -518,7 +518,6 @@ def plotRawDataFromDir(dir_name, rowDistance=20):
     XYs.finishLoading()
     return EXIT_SUCCESS
 
-
 # button callbacks
 def browseCallBack():
     dir = askdirectory()
@@ -528,7 +527,6 @@ def browseCallBack():
         global dataLoaded
         dataLoaded = True
 
-
 def invertCallBack():
     if not dataLoaded:
         remindLoadingData()
@@ -536,7 +534,6 @@ def invertCallBack():
     print 'invert button clicked'
     global XYs
     XYs.invert()
-
 
 def promptCaliFactor():
     top = Tk.Toplevel()
@@ -585,6 +582,7 @@ def drawRecCallBack(eclick, erelease):
         return
 
     if enableCheckBoxState.get() is not OpEnabled:
+        remindWindow('Wait...', 'Check \'Enable Marker Placement\' to enable this feature')
         return
 
     if cali_info.caliInfoReady():
@@ -608,16 +606,11 @@ def drawRecCallBack(eclick, erelease):
     canvas.draw()
     promptCaliFactor()
 
+# draw Rectangle switches
 
 rectSelectorHandle = RectangleSelector(mainAx, drawRecCallBack, drawtype='box')
 
-# draw Rectangle switches
-
 def enableRectSelector():
-    # disableDrawVertLine()
-    # disableDrawSyncLine()
-    # disableDrawHorizontalLine()
-
     global rectSelectorHandle
     if not rectSelectorHandle.active:
         rectSelectorHandle.set_active(True)
@@ -627,17 +620,12 @@ def disableRectSelector():
     if rectSelectorHandle.active:
         rectSelectorHandle.set_active(False)
 
-
 # draw V line switches
 
 def enableDrawVertLine():
     global drawVLineHandle
-    # disableRectSelector()
-    # disableDrawSyncLine()
-    # disableDrawHorizontalLine()
-
     if drawVLineHandle is None:
-        drawVLineHandle = canvas.mpl_connect('button_press_event', onClickDrawLine)
+        drawVLineHandle = canvas.mpl_connect('button_press_event', drawVerticalLineCallback)
 
 
 def disableDrawVertLine():
@@ -650,12 +638,8 @@ def disableDrawVertLine():
 
 def enableDrawSyncLine():
     global drawSyncLineHandle
-    # disableRectSelector()
-    # disableDrawVertLine()
-    # disableDrawHorizontalLine()
-
     if drawSyncLineHandle is None:
-        drawSyncLineHandle = canvas.mpl_connect('button_press_event', onClickDrawSyncLine)
+        drawSyncLineHandle = canvas.mpl_connect('button_press_event', drawSyncLineCallback)
 
 
 def disableDrawSyncLine():
@@ -668,12 +652,8 @@ def disableDrawSyncLine():
 
 def enableDrawHorizontalLine():
     global drawHorizontalLineHandle
-
-    # disableRectSelector()
-    # disableDrawVertLine()
-    # disableDrawSyncLine()
     if drawHorizontalLineHandle is None:
-        drawHorizontalLineHandle = canvas.mpl_connect('button_press_event', onClickDrawHorizontalLine)
+        drawHorizontalLineHandle = canvas.mpl_connect('button_press_event', drawHorizontalLineCallback)
 
 
 def disableDrawHorizontalLine():
@@ -683,11 +663,37 @@ def disableDrawHorizontalLine():
         drawHorizontalLineHandle = None
 
 # draw ROI switches
+def ROICallBack(eclick, erelease):
+    if not dataLoaded:
+        remindLoadingData()
+        return
+
+    if enableCheckBoxState.get() is not OpEnabled:
+        remindWindow('Wait...', 'Check \'Enable Marker Placement\' to enable this feature')
+        return
+
+    # draw rectangle
+    deltaX = abs(erelease.xdata - eclick.xdata)
+    deltaY = abs(erelease.ydata - eclick.ydata)
+
+
+ROIHandle = RectangleSelector(mainAx, ROICallBack, drawtype='box')
+
+def enableDrawROI():
+    global ROIHandle
+    if not ROIHandle.active:
+        ROIHandle.set_active(True)
+
+def disableDrawROI():
+    global ROIHandle
+    if ROIHandle.active:
+        ROIHandle.set_active(False)
 
 def enableStep(stepOn):
+    print 'stepOn: ' + str(stepOn)
     if stepOn < STEP_ONE or stepOn > STEP_FIVE:
-        print 'Wrong Step number: ', stepOn
-        sys.exit(1)
+        assert False, "Illegal step number"
+
     global enablers
     global disablers
     # disable everything other steps
@@ -699,7 +705,7 @@ def enableStep(stepOn):
     enablers[stepOn]()
 
 
-# _                      _ _
+#      _                      _ _
 #     | |                    | (_)
 #   __| |_ __ __ ___      __ | |_ _ __   ___
 #  / _` | '__/ _` \ \ /\ / / | | | '_ \ / _ \
@@ -707,7 +713,7 @@ def enableStep(stepOn):
 #  \__,_|_|  \__,_| \_/\_/   |_|_|_| |_|\___|
 #
 #
-def onClickDrawLine(event):
+def drawVerticalLineCallback(event):
     if event.x is None or event.y is None or event.xdata is None or event.ydata is None:
         return
 
@@ -719,7 +725,7 @@ def onClickDrawLine(event):
         return
 
     if v_lines.vLinesReady():
-        selectedOp.set(userModes[2])
+        selectedOp.set(userModes[STEP_THREE])
         selectOpCallBack(None)
         return
 
@@ -734,7 +740,7 @@ def onClickDrawLine(event):
     canvas.draw()
 
 
-def onClickDrawSyncLine(event):
+def drawSyncLineCallback(event):
     if event.x is None or event.y is None or event.xdata is None or event.ydata is None:
         return
 
@@ -750,7 +756,7 @@ def onClickDrawSyncLine(event):
         return
 
     if sync_lines.vSyncLinesReady():
-        selectedOp.set(userModes[3])
+        selectedOp.set(userModes[STEP_FOUR])
         selectOpCallBack(None)
         return
 
@@ -765,7 +771,7 @@ def onClickDrawSyncLine(event):
     canvas.draw()
 
 
-def onClickDrawHorizontalLine(event):
+def drawHorizontalLineCallback(event):
     if event.x is None or event.y is None or event.xdata is None or event.ydata is None:
         return
 
@@ -777,6 +783,8 @@ def onClickDrawHorizontalLine(event):
         return
 
     if h_lines.HorizontalLinesReady():
+        # automatically move to the next state
+        selectedOp.set(userModes[STEP_FIVE])
         return
 
     # set the current axis to the main axis
@@ -784,6 +792,7 @@ def onClickDrawHorizontalLine(event):
     xDataMin = XYs.allXmin + whiteSpaceLength
     lineHandle, = mainAx.plot([xDataMin, xDataMax], [event.ydata, event.ydata], linestyle='dashed', color='orange')
     h_lines.addHLine(Hline(lineHandle, event.ydata))
+
     canvas.draw()
 
 
@@ -803,8 +812,11 @@ def selectOpCallBack(event):
     elif currOp == userModes[STEP_THREE]:  # sync line
         enableStep(STEP_THREE)
 
-    else: # horizontal line
+    elif currOp == userModes[STEP_FOUR]: # horizontal line
         enableStep(STEP_FOUR)
+
+    else: # ROI
+        enableStep(STEP_FIVE)
 
 
 def deleteCallBack():
@@ -825,7 +837,6 @@ def deleteCallBack():
 
     else:  # horizontal line
         h_lines.deleteHorizontalLine()
-
 
 def getUnreadySteps():
 
@@ -1072,7 +1083,7 @@ def restartCallBack():
     global dataLoaded
     dataLoaded = False
     OpEnabled = 1
-    selectedOp.set(userModes[0])
+    selectedOp.set(userModes[STEP_ONE])
     selectOpCallBack(None)
 
 
@@ -1086,8 +1097,7 @@ if __name__ == "__main__":
     enableDrawingButton = Tk.Checkbutton(master=root, text="Enable Marker Placement", variable=enableCheckBoxState, command=enableCallBack)
     enableDrawingButton.pack(side=Tk.LEFT)
 
-    dropDownMenu = Tk.OptionMenu(root, selectedOp, userModes[0], userModes[1], userModes[2], userModes[3],
-                                 command=selectOpCallBack)
+    dropDownMenu = Tk.OptionMenu(root, selectedOp, userModes[STEP_ONE], userModes[STEP_TWO], userModes[STEP_THREE], userModes[STEP_FOUR], userModes[STEP_FIVE], command=selectOpCallBack)
     dropDownMenu.pack(side=Tk.LEFT)
 
     deleteButton = Tk.Button(master=root, text="Delete", command=deleteCallBack)
@@ -1104,10 +1114,11 @@ if __name__ == "__main__":
     enablers[STEP_TWO] = enableDrawVertLine
     enablers[STEP_THREE] = enableDrawSyncLine
     enablers[STEP_FOUR] = enableDrawHorizontalLine
+    enablers[STEP_FIVE] = enableDrawROI
 
     disablers[STEP_ONE] = disableRectSelector
     disablers[STEP_TWO] = disableDrawVertLine
     disablers[STEP_THREE] = disableDrawSyncLine
     disablers[STEP_FOUR] = disableDrawHorizontalLine
-
+    disablers[STEP_FIVE] = disableDrawROI
     Tk.mainloop()
