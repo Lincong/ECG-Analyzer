@@ -12,6 +12,9 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 from matplotlib.widgets import RectangleSelector
 
+DAT_FILE_NUM = 4
+EXIT_SUCCESS = 0
+EXIT_FAILURE = 1
 
 STEP_ONE = 0  # select rectangle
 STEP_TWO = 1  # draw vertical lines
@@ -494,10 +497,16 @@ def plotRawDataFromDir(dir_name, rowDistance=20):
         allInputFiles = os.listdir(dir_name)
     except OSError:
         remindWindow('Error!', 'No such a directory')
+        return EXIT_FAILURE
 
     global XYs, yMax, yMin
 
     allInputFiles = list(filter(lambda fn: ('.dat' in fn), allInputFiles))
+
+    if len(allInputFiles) != DAT_FILE_NUM:
+        remindWindow('Error!', 'Need exactly ' + str(DAT_FILE_NUM) + ' dat files')
+        return EXIT_FAILURE
+
     allInputFiles = list(map(lambda fn: (dir_name + '/' + fn), allInputFiles))
     logging.debug(allInputFiles)
 
@@ -507,18 +516,23 @@ def plotRawDataFromDir(dir_name, rowDistance=20):
         XYs.addRow(xs, ys)
 
     XYs.finishLoading()
+    return EXIT_SUCCESS
 
 
 # button callbacks
 def browseCallBack():
     dir = askdirectory()
     print dir
-    plotRawDataFromDir(dir)
-    global dataLoaded
-    dataLoaded = True
+    ret = plotRawDataFromDir(dir)
+    if ret == EXIT_SUCCESS:
+        global dataLoaded
+        dataLoaded = True
 
 
 def invertCallBack():
+    if not dataLoaded:
+        remindLoadingData()
+        return
     print 'invert button clicked'
     global XYs
     XYs.invert()
@@ -794,6 +808,11 @@ def selectOpCallBack(event):
 
 
 def deleteCallBack():
+
+    if not dataLoaded:
+        remindLoadingData()
+        return
+
     currOp = selectedOp.get()
     if currOp == userModes[STEP_ONE]:  # calibration
         cali_info.deleteRect()
@@ -1039,6 +1058,10 @@ def saveCallBack():
 
 def restartCallBack():
     # delete all existing objects
+    if not dataLoaded:
+        remindLoadingData()
+        return
+
     cali_info.deleteRect()
     v_lines.deleteAll()
     sync_lines.deleteAll()
