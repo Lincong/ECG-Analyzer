@@ -95,6 +95,7 @@ class ROI(object):
         self.rect_handle.remove()
         del self.xs[:]
         del self.ys[:]
+        # canvas.draw()
 
 # A class used to manage all input data and perform transformation on it
 class AllRows(object):
@@ -117,6 +118,15 @@ class AllRows(object):
         self.invertedInputXY = []
         self.plotHandles = []
         self.ROIs = []
+
+    def deleteROIs(self):
+        if self.ROIs is None:
+            return
+
+        for roi in self.ROIs:
+            roi.delete()
+        canvas.draw()
+        del self.ROIs[:]
 
     # draw a rectange on the canvas and return a list: [xs, ys, handle of the rectangle]
     # return an empty list if it fails
@@ -239,19 +249,15 @@ class AllRows(object):
         return rows
 
     def reset(self):
-        for roi in self.ROIs:
-            roi.delete()
-
+        self.deleteROIs()
         for eachHandle in self.plotHandles:
             eachHandle.remove()
         canvas.draw()
 
         del self.inputXY[:]
-        # self.invertedInputXY = []
         del self.invertedInputXY[:]
-        # self.plotHandles = []
         del self.plotHandles[:]
-        del self.ROIs[:]
+
         self.allYmax = 0
         self.allYmin = 0
         self.allXmax = 0
@@ -349,12 +355,12 @@ class VLines(object):
 
         vline = self.currVLineXs.get()
         vline.handle.remove()
-        canvas.draw()
         return True
 
     def deleteAll(self):
         while self.deleteVerticalLine() is True:
             continue
+        canvas.draw()
 
     def getXs(self):
         Xs = []
@@ -978,8 +984,11 @@ def deleteCallBack():
     elif currOp == userModes[STEP_THREE]:  # sync line
         sync_lines.deleteSyncLine()
 
-    else:  # horizontal line
+    elif currOp == userModes[STEP_FOUR]: # horizontal line
         h_lines.deleteHorizontalLine()
+
+    else:  # ROI
+        XYs.deleteROIs()
 
 def getUnreadySteps():
 
