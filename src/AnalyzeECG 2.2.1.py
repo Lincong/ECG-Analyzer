@@ -92,6 +92,35 @@ class AllRows(object):
         self.invertedInputXY = []
         self.plotHandles = []
 
+    # draw a rectange on the canvas and return a list: [xs, ys, handle of the rectangle]
+    # return an empty list if it fails
+    def mark_region(self, row, x_start, x_end):
+        ret_xs = list()
+        ret_ys = list()
+        yMin = row.ys[0]
+        yMax = yMin
+        idx = 0
+        for x in row.xs:
+            if (x_start <= x) and (x <= x_end):
+                ret_xs.append(x)
+                y = row.ys[idx]
+                idx += 1
+                ret_ys.append(y)
+                if y < yMin:
+                    yMin = y
+                if y > yMax:
+                    yMax = y
+
+        rectPatch = patches.Rectangle((x_start, yMax), x_end - x_start, yMax - yMin, alpha=0.3)
+        mainAx.add_patch(rectPatch)
+        canvas.draw()
+        ret = list()
+        ret.append(ret_xs)
+        ret.append(ret_ys)
+        ret.append(rectPatch)
+        return ret
+
+
     def mark_ROI_regions(self, x_start_offset, ROI_len, syncLineXs):
         XYs = None
         if self.isInverted:
@@ -100,15 +129,11 @@ class AllRows(object):
             XYs = self.inputXY
 
         for row in XYs:
-            yMax = row.yMax
-            yMin = row.yMin
-            deltaY = yMax - yMin
 
             for syncLineX in syncLineXs:
-                rectPatch = patches.Rectangle((syncLineX - x_start_offset, yMax), ROI_len, deltaY, alpha=0.3)
-                mainAx.add_patch(rectPatch)
-
-        canvas.draw()
+                x_start = syncLineX - x_start_offset
+                x_end = syncLineX + ROI_len
+                self.mark_region(row, x_start, x_end)
 
     def addRow(self, xs, ys):
 
@@ -735,7 +760,6 @@ def validate_and_mark_ROI_regions(x_min, x_max):
 
     vLineXs = ret[0]
     syncLineXs = ret[1]
-    hLineYs = ret[2]
 
     # validate marked region
     # find regions that ROI is allowed to be in
@@ -746,15 +770,15 @@ def validate_and_mark_ROI_regions(x_min, x_max):
         region.append(syncLineXs[i])
         regions.append(region)
 
-    print 'x_min: ',
+    # print 'x_min: ',
     print x_min
-    print 'x_max: ',
+    # print 'x_max: ',
     print x_max
     # check which region is the marked ROI in
     region_start = None
     region_end = None
     for region in regions:
-        print 'region: ',
+        # print 'region: ',
         print region
         if (region[0] <= x_min) and (x_max <= region[1]): # found it
             region_start = region[0]
