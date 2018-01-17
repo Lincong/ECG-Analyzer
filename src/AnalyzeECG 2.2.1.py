@@ -22,6 +22,8 @@ STEP_THREE = 2  # draw vertical sync lines
 STEP_FOUR = 3  # draw horizontal lines
 STEP_FIVE = 4  # draw ROI
 
+ROI_MARK_PADDING = 30
+
 curr_step = STEP_ONE
 
 disablers = {}
@@ -97,21 +99,21 @@ class AllRows(object):
     def mark_region(self, row, x_start, x_end):
         ret_xs = list()
         ret_ys = list()
-        yMin = row.ys[0]
-        yMax = yMin
+        y_min = row.ys[0]
+        y_max = y_min
         idx = 0
         for x in row.xs:
             if (x_start <= x) and (x <= x_end):
                 ret_xs.append(x)
                 y = row.ys[idx]
-                idx += 1
                 ret_ys.append(y)
-                if y < yMin:
-                    yMin = y
-                if y > yMax:
-                    yMax = y
+                if y < y_min:
+                    y_min = y
+                if y > y_max:
+                    y_max = y
+            idx += 1
 
-        rectPatch = patches.Rectangle((x_start, yMax), x_end - x_start, yMax - yMin, alpha=0.3)
+        rectPatch = patches.Rectangle((x_start, y_min - ROI_MARK_PADDING), x_end - x_start, y_max - y_min + ROI_MARK_PADDING * 2, alpha=0.3) # edgecolor='red', fill=False)
         mainAx.add_patch(rectPatch)
         canvas.draw()
         ret = list()
@@ -122,17 +124,13 @@ class AllRows(object):
 
 
     def mark_ROI_regions(self, x_start_offset, ROI_len, syncLineXs):
-        XYs = None
-        if self.isInverted:
-            XYs = self.invertedInputXY
-        else:
-            XYs = self.inputXY
+        x_y_data = self.getCurrentPlotedXYs()
 
-        for row in XYs:
+        for row in x_y_data:
 
             for syncLineX in syncLineXs:
                 x_start = syncLineX - x_start_offset
-                x_end = syncLineX + ROI_len
+                x_end = x_start + ROI_len
                 self.mark_region(row, x_start, x_end)
 
     def addRow(self, xs, ys):
@@ -178,7 +176,7 @@ class AllRows(object):
 
         mainAx.set_ylim([0, self.allYmax + 20])
         canvas.draw()
-        self.isInverted = not self.isInverted
+        # self.isInverted = not self.isInverted
 
     def invert(self):
         # remove the current plot
@@ -191,6 +189,7 @@ class AllRows(object):
             self.plotRows(self.invertedInputXY)
         else:
             self.plotRows(self.inputXY)
+        self.isInverted = not self.isInverted
 
     def getCurrentPlotedXYs(self):
         if self.isInverted:
@@ -770,16 +769,13 @@ def validate_and_mark_ROI_regions(x_min, x_max):
         region.append(syncLineXs[i])
         regions.append(region)
 
-    # print 'x_min: ',
-    print x_min
-    # print 'x_max: ',
-    print x_max
+    # print x_min
+    # print x_max
     # check which region is the marked ROI in
     region_start = None
     region_end = None
     for region in regions:
-        # print 'region: ',
-        print region
+        # print region
         if (region[0] <= x_min) and (x_max <= region[1]): # found it
             region_start = region[0]
             region_end = region[1]
@@ -1207,6 +1203,7 @@ def saveCallBack():
 
 def restartCallBack():
     # delete all existing objects
+    global dataLoaded
     if not dataLoaded:
         remindLoadingData()
         return
@@ -1218,7 +1215,6 @@ def restartCallBack():
     XYs.reset()
     # reset global state
     global OpEnabled
-    global dataLoaded
     dataLoaded = False
     OpEnabled = 1
     selectedOp.set(userModes[STEP_ONE])
