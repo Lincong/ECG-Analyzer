@@ -73,12 +73,35 @@ drawHorizontalLineHandle = None
 
 dataLoaded = False
 
+class ROI(object):
+    xs = None
+    ys = None
+    rect_handle = None
+
+    def __init__(self, xs, ys, rect_handle):
+        if(len(xs) != len(ys)):
+            print 'For each ROI, the number of x points must equal to the number of y points'
+            assert False
+        self.xs = xs
+        self.ys = ys
+        self.rect_handle = rect_handle
+
+    # def save(self, fn):
+    # TODO
+
+    def delete(self):
+        if self.rect_handle is None:
+            return
+        self.rect_handle.remove()
+        del self.xs[:]
+        del self.ys[:]
 
 # A class used to manage all input data and perform transformation on it
 class AllRows(object):
     inputXY = None
     invertedInputXY = None
     plotHandles = None
+    ROIs = None
 
     allXmax = 0
     allXmin = 0
@@ -93,6 +116,7 @@ class AllRows(object):
         self.inputXY = []
         self.invertedInputXY = []
         self.plotHandles = []
+        self.ROIs = []
 
     # draw a rectange on the canvas and return a list: [xs, ys, handle of the rectangle]
     # return an empty list if it fails
@@ -116,12 +140,9 @@ class AllRows(object):
         rectPatch = patches.Rectangle((x_start, y_min - ROI_MARK_PADDING), x_end - x_start, y_max - y_min + ROI_MARK_PADDING * 2, alpha=0.3) # edgecolor='red', fill=False)
         mainAx.add_patch(rectPatch)
         canvas.draw()
-        ret = list()
-        ret.append(ret_xs)
-        ret.append(ret_ys)
-        ret.append(rectPatch)
-        return ret
 
+        # return a ROI object
+        return ROI(ret_xs, ret_ys, rectPatch)
 
     def mark_ROI_regions(self, x_start_offset, ROI_len, syncLineXs):
         x_y_data = self.getCurrentPlotedXYs()
@@ -131,7 +152,8 @@ class AllRows(object):
             for syncLineX in syncLineXs:
                 x_start = syncLineX - x_start_offset
                 x_end = x_start + ROI_len
-                self.mark_region(row, x_start, x_end)
+                region_interested = self.mark_region(row, x_start, x_end)
+                self.ROIs.append(region_interested)
 
     def addRow(self, xs, ys):
 
@@ -217,13 +239,19 @@ class AllRows(object):
         return rows
 
     def reset(self):
+        for roi in self.ROIs:
+            roi.delete()
+
         for eachHandle in self.plotHandles:
             eachHandle.remove()
         canvas.draw()
 
-        self.inputXY = []
-        self.invertedInputXY = []
-        self.plotHandles = []
+        del self.inputXY[:]
+        # self.invertedInputXY = []
+        del self.invertedInputXY[:]
+        # self.plotHandles = []
+        del self.plotHandles[:]
+        del self.ROIs[:]
         self.allYmax = 0
         self.allYmin = 0
         self.allXmax = 0
