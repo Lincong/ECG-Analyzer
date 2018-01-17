@@ -22,6 +22,8 @@ STEP_THREE = 2  # draw vertical sync lines
 STEP_FOUR = 3  # draw horizontal lines
 STEP_FIVE = 4  # draw ROI
 
+curr_step = STEP_ONE
+
 disablers = {}
 enablers = {}
 
@@ -581,11 +583,8 @@ def promptCaliFactor():
 #  \__,_|_|  \__,_| \_/\_/   |_|  \___|\___|\__\__,_|_| |_|\__, |_|\___|
 #                                                           __/ |
 #                                                          |___/
-def drawRecCallBack(eclick, erelease):
-    if not dataLoaded:
-        remindLoadingData()
-        return
 
+def drawCaliRectCallBack(eclick, erelease):
     if enableCheckBoxState.get() is not OpEnabled:
         remindWindow('Wait...', 'Check \'Enable Marker Placement\' to enable this feature')
         return
@@ -615,8 +614,24 @@ def drawRecCallBack(eclick, erelease):
     promptCaliFactor()
 
 # draw Rectangle switches
+def drawRectCallBack(eclick, erelease):
+    if not dataLoaded:
+        remindLoadingData()
+        return
 
-rectSelectorHandle = RectangleSelector(mainAx, drawRecCallBack, drawtype='box')
+    #
+    currOp = selectedOp.get()
+    if 'ROI' in currOp:
+        ROICallBack(eclick, erelease)
+
+    elif 'calibration' in currOp:
+        drawCaliRectCallBack(eclick, erelease)
+
+    else:
+        print 'Draw rectangle is only valid for drawing calibration rectange or makr ROI. There must be some code logic issues'
+        assert False
+
+rectSelectorHandle = RectangleSelector(mainAx, drawRectCallBack, drawtype='box')
 
 def enableRectSelector():
     global rectSelectorHandle
@@ -672,6 +687,7 @@ def disableDrawHorizontalLine():
 
 # draw ROI switches
 def ROICallBack(eclick, erelease):
+    print 'In ROI callback'
     if not dataLoaded:
         remindLoadingData()
         return
@@ -684,28 +700,74 @@ def ROICallBack(eclick, erelease):
     x_max = max(erelease.xdata, eclick.xdata)
 
     # check if x_min and x_max are valid
-    mark_ROI_regions(x_min, x_max)
+    validate_and_mark_ROI_regions(x_min, x_max)
 
-def mark_ROI_regions(x_min, x_max):
+def mark_ROI_regions(x_start_offset, ROI_len, syncLineXs, hLineYs):
+    # TODO
+    halfPathHeight = 15
+    for hLineY in hLineYs: # for each Y value
+        for syncLineX in syncLineXs:
+            rectPatch = patches.Rectangle((syncLineX - x_start_offset, hLineY + halfPathHeight ), ROI_len, 2 * halfPathHeight, alpha=0.3)
+            mainAx.add_patch(rectPatch)
+            canvas.draw()
+
+def validate_and_mark_ROI_regions(x_min, x_max):
     if x_min >= x_max:
         remindWindow('Error!', 'Invalid rectange. x distance too small')
         return
 
-    # find which region is it
+    # validate existing data
+    ret = is_data_complete_and_valid()
+    if len(ret) == 0:
+        return
+    if len(ret) != 3:
+        print 'is_data_complete_and_valid() does not return properly!'
+        assert False
 
+    vLineXs = ret[0]
+    syncLineXs = ret[1]
+    hLineYs = ret[2]
 
+    # validate marked region
+    # find regions that ROI is allowed to be in
+    regions = list()
+    for i in range(len(syncLineXs)):
+        region = list()
+        region.append(vLineXs[i])
+        region.append(syncLineXs[i])
+        regions.append(region)
 
-ROIHandle = RectangleSelector(mainAx, ROICallBack, drawtype='box')
+    print 'x_min: ',
+    print x_min
+    print 'x_max: ',
+    print x_max
+    # check which region is the marked ROI in
+    region_start = None
+    region_end = None
+    for region in regions:
+        print 'region: ',
+        print region
+        if (region[0] <= x_min) and (x_max <= region[1]): # found it
+            region_start = region[0]
+            region_end = region[1]
+            break
+
+    if (region_start == None) or (region_end == None):
+        remindWindow('Wait...', 'Invalid ROI')
+        return
+
+    # transform [x_min, x_max] to [x_start_offset, ROI_len]
+    ROI_len = x_max - x_min
+    x_start_offset = region_end - x_min  # how much to the left of the sync line it is
+
+    # mark ROI on the plot
+    mark_ROI_regions(x_start_offset, ROI_len, syncLineXs, hLineYs)
 
 def enableDrawROI():
-    global ROIHandle
-    if not ROIHandle.active:
-        ROIHandle.set_active(True)
+    enableRectSelector()
 
 def disableDrawROI():
-    global ROIHandle
-    if ROIHandle.active:
-        ROIHandle.set_active(False)
+    disableRectSelector()
 
 def enableStep(stepOn):
     print 'stepOn: ' + str(stepOn)
@@ -1045,14 +1107,11 @@ def splitOneRow(row, vLineXs, syncLineXs, yOffset):
     return leads
 
 
-def saveCallBack():
-
-    # check if it is ready to save
-    if not dataLoaded:
-        remindLoadingData()
-        return
+# returns a list [vLineXs, syncLineXs, hLineYs]
+def is_data_complete_and_valid():
     unreadySteps = getUnreadySteps()
 
+    ret = list()
     if len(unreadySteps) != 0:  # there are some steps not yet finish
         top = Tk.Toplevel()
         top.geometry(WARNING_WINDOW_GEOMETRY)
@@ -1067,7 +1126,7 @@ def saveCallBack():
 
         button = Tk.Button(top, text="OK", command=top.destroy)
         button.pack()
-        return
+        return ret
 
     vLineXs = v_lines.getXs()
     syncLineXs = sync_lines.getXs()
@@ -1075,16 +1134,37 @@ def saveCallBack():
     # validate syncLineXs
     if len(vLineXs) is not len(syncLineXs) + 1:
         remindWindow('Wait...', 'Invalid synchronization lines. Should have one less than vertical lines')
-        return
+        return ret
 
     for i in range(len(syncLineXs)):
         if syncLineXs[i] < vLineXs[i] or syncLineXs[i] > vLineXs[i + 1]:
             remindWindow('Wait...',
                          'Invalid synchronization lines. Each sync line should be between two vertical lines')
-            return
+            return ret
 
     hLineYs = h_lines.getYs()
+    ret.append(vLineXs)
+    ret.append(syncLineXs)
+    ret.append(hLineYs)
+    return ret
 
+def saveCallBack():
+
+    # check if it is ready to save
+    if not dataLoaded:
+        remindLoadingData()
+        return
+
+    ret = is_data_complete_and_valid()
+    if len(ret) == 0:
+        return
+    if len(ret) != 3:
+        print 'is_data_complete_and_valid() does not return properly!'
+        assert False
+
+    vLineXs = ret[0]
+    syncLineXs = ret[1]
+    hLineYs = ret[2]
     fd = asksaveasfile(mode='w', defaultextension=".csv")
     if fd is None:
         return
@@ -1110,7 +1190,6 @@ def restartCallBack():
     OpEnabled = 1
     selectedOp.set(userModes[STEP_ONE])
     selectOpCallBack(None)
-
 
 if __name__ == "__main__":
     browseButton = Tk.Button(master=root, text="Set Data Folder", command=browseCallBack)
