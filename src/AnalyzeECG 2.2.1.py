@@ -92,6 +92,24 @@ class AllRows(object):
         self.invertedInputXY = []
         self.plotHandles = []
 
+    def mark_ROI_regions(self, x_start_offset, ROI_len, syncLineXs):
+        XYs = None
+        if self.isInverted:
+            XYs = self.invertedInputXY
+        else:
+            XYs = self.inputXY
+
+        for row in XYs:
+            yMax = row.yMax
+            yMin = row.yMin
+            deltaY = yMax - yMin
+
+            for syncLineX in syncLineXs:
+                rectPatch = patches.Rectangle((syncLineX - x_start_offset, yMax), ROI_len, deltaY, alpha=0.3)
+                mainAx.add_patch(rectPatch)
+
+        canvas.draw()
+
     def addRow(self, xs, ys):
 
         row = OneRowXY(xs, ys)
@@ -702,15 +720,6 @@ def ROICallBack(eclick, erelease):
     # check if x_min and x_max are valid
     validate_and_mark_ROI_regions(x_min, x_max)
 
-def mark_ROI_regions(x_start_offset, ROI_len, syncLineXs, hLineYs):
-    # TODO
-    halfPathHeight = 15
-    for hLineY in hLineYs: # for each Y value
-        for syncLineX in syncLineXs:
-            rectPatch = patches.Rectangle((syncLineX - x_start_offset, hLineY + halfPathHeight ), ROI_len, 2 * halfPathHeight, alpha=0.3)
-            mainAx.add_patch(rectPatch)
-            canvas.draw()
-
 def validate_and_mark_ROI_regions(x_min, x_max):
     if x_min >= x_max:
         remindWindow('Error!', 'Invalid rectange. x distance too small')
@@ -761,7 +770,7 @@ def validate_and_mark_ROI_regions(x_min, x_max):
     x_start_offset = region_end - x_min  # how much to the left of the sync line it is
 
     # mark ROI on the plot
-    mark_ROI_regions(x_start_offset, ROI_len, syncLineXs, hLineYs)
+    XYs.mark_ROI_regions(x_start_offset, ROI_len, syncLineXs)
 
 def enableDrawROI():
     enableRectSelector()
