@@ -176,7 +176,6 @@ class AllRows(object):
 
         mainAx.set_ylim([0, self.allYmax + 20])
         canvas.draw()
-        # self.isInverted = not self.isInverted
 
     def invert(self):
         # remove the current plot
@@ -185,17 +184,17 @@ class AllRows(object):
         canvas.draw()
         self.plotHandles = []
 
+        self.isInverted = not self.isInverted
         if self.isInverted:
             self.plotRows(self.invertedInputXY)
         else:
             self.plotRows(self.inputXY)
-        self.isInverted = not self.isInverted
 
     def getCurrentPlotedXYs(self):
         if self.isInverted:
-            return self.inputXY
-        else:
             return self.invertedInputXY
+        else:
+            return self.inputXY
 
     # adjust the position of these XY rows
     def adjustRows(self, rows):
