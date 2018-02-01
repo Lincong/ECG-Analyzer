@@ -865,7 +865,6 @@ def disableDrawHorizontalLine():
 
 # draw ROI switches
 def ROICallBack(eclick, erelease):
-    print 'In ROI callback'
     if not dataLoaded:
         remindLoadingData()
         return
@@ -954,7 +953,7 @@ def disableDrawROI():
     disableRectSelector()
 
 def enableStep(stepOn):
-    print 'stepOn: ' + str(stepOn)
+    # print 'stepOn: ' + str(stepOn)
     if stepOn < STEP_ONE or stepOn > STEP_FIVE:
         assert False, "Illegal step number"
 
