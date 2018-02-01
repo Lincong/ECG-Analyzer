@@ -166,12 +166,16 @@ class AllRows(object):
     rowDistance = 20
     distanceFromBottom = 10
     isInverted = False
+    ROI_ready_to_save = False
 
     def __init__(self):
         self.inputXY = []
         self.invertedInputXY = []
         self.plotHandles = []
         self.ROIs = []  # a list of ROI objects
+
+    def is_ROI_ready(self):
+      return self.ROI_ready_to_save
 
     def deleteROIs(self):
         if self.ROIs is None:
@@ -874,14 +878,15 @@ def ROICallBack(eclick, erelease):
     x_max = max(erelease.xdata, eclick.xdata)
 
     # check if x_min and x_max are valid
-    if not validate_and_mark_ROI_regions(x_min, x_max):
-        return
+    # if not validate_and_mark_ROI_regions(x_min, x_max):
+    #     return
+    XYs.ROI_ready_to_save = validate_and_mark_ROI_regions(x_min, x_max)
 
     # TODO: make it to its own save ROI callback
-    fd = asksaveasfile(mode='w', defaultextension=".csv")
-    if fd is None:
-        return
-    XYs.save_ROI_regions(fd)
+    # fd = asksaveasfile(mode='w', defaultextension=".csv")
+    # if fd is None:
+    #     return
+    # XYs.save_ROI_regions(fd)
 
 ''' returns True if the validation is successful '''
 def validate_and_mark_ROI_regions(x_min, x_max):
@@ -1348,6 +1353,15 @@ def saveCallBack():
 
     preSaveDataProcess(fd, vLineXs, syncLineXs, hLineYs)
 
+def saveROICallBack():
+    if not XYs.is_ROI_ready():
+        remindWindow('Wait...', 'no ROI selected')
+        return
+
+    fd = asksaveasfile(mode='w', defaultextension=".csv")
+    if fd is None:
+        return
+    XYs.save_ROI_regions(fd)
 
 def restartCallBack():
     # delete all existing objects
@@ -1389,6 +1403,9 @@ if __name__ == "__main__":
 
     saveButton = Tk.Button(master=root, text="Save", command=saveCallBack)
     saveButton.pack(side=Tk.LEFT)
+
+    saveROIButton = Tk.Button(master=root, text="Save ROI", command=saveROICallBack)
+    saveROIButton.pack(side=Tk.LEFT)
 
     restartButton = Tk.Button(master=root, text="Restart", command=restartCallBack)
     restartButton.pack(side=Tk.LEFT)
