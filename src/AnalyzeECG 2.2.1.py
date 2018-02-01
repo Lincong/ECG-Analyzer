@@ -90,8 +90,14 @@ class ROI(object):
         self.ys = ys
         self.rect_handle = rect_handle
 
-    # def save(self, fn):
-    # TODO
+    def get_ROI_len(self):
+        return len(self.xs)
+
+    def get_xs(self):
+        return self.xs
+
+    def get_ys(self):
+        return self.ys
 
     def delete(self):
         if self.rect_handle is None:
@@ -160,14 +166,51 @@ class AllRows(object):
 
     def mark_ROI_regions(self, x_start_offset, ROI_len, syncLineXs):
         x_y_data = self.getCurrentPlotedXYs()
-
+        # ret_ROI_len = None
+        x_y_data = x_y_data[1:]
         for row in x_y_data:
 
             for syncLineX in syncLineXs:
                 x_start = syncLineX - x_start_offset
                 x_end = x_start + ROI_len
                 region_interested = self.mark_region(row, x_start, x_end)
+                # if ret_ROI_len is None:
+                #   ret_ROI_len = region_interested.get_ROI_len()
+                # else:
+                  # make sure each ROI has the same length
+                  # assert ret_ROI_len is region_interested.get_ROI_len()
+                # print 'ROI len: ', ret_ROI_len
                 self.ROIs.append(region_interested)
+
+    def save_ROI_regions(self, fd):
+        if len(self.ROIs) is 0:
+            print 'ROIs not marked yet'
+            return
+
+        if len(self.ROIs) is not len(save_data_lead_names):
+            print 'The number of ROI is wrong: ', len(self.ROIs)
+            return
+
+        csv.register_dialect('excel_custom', 'excel', lineterminator='\n')
+        writer = csv.writer(fd, 'excel_custom')
+        titleRow = []
+        for leadName in save_data_lead_names:
+            titleRow.append(leadName + ' (X)')
+            titleRow.append(leadName + ' (Y)')
+        writer.writerow(titleRow)
+        # assume the ROI is arranged in the correct order corresponding to the title header
+        allLeads = []
+        for ROI in self.ROIs:
+            xs = ROI.get_xs()
+            ys = ROI.get_ys()
+            allLeads.append([float(x) for x in xs])
+            allLeads.append([float(y) for y in ys])
+        allLeads = zip(*allLeads)
+        for eachRow in allLeads:
+            writer.writerow(eachRow)
+
+        fd.close()
+
 
     def addRow(self, xs, ys):
 
@@ -783,12 +826,20 @@ def ROICallBack(eclick, erelease):
     x_max = max(erelease.xdata, eclick.xdata)
 
     # check if x_min and x_max are valid
-    validate_and_mark_ROI_regions(x_min, x_max)
+    if not validate_and_mark_ROI_regions(x_min, x_max):
+        return
 
+    # TODO: make it to its own save ROI callback
+    fd = asksaveasfile(mode='w', defaultextension=".csv")
+    if fd is None:
+        return
+    XYs.save_ROI_regions(fd)
+
+''' returns True if the validation is successful '''
 def validate_and_mark_ROI_regions(x_min, x_max):
     if x_min >= x_max:
         remindWindow('Error!', 'Invalid rectange. x distance too small')
-        return
+        return False
 
     # validate existing data
     ret = is_data_complete_and_valid()
@@ -833,7 +884,7 @@ def validate_and_mark_ROI_regions(x_min, x_max):
     # if (region_start == None) or (region_end == None):
     if sync_line_x_pos is None:
         remindWindow('Wait...', 'Invalid ROI')
-        return
+        return False
 
     # transform [x_min, x_max] to [x_start_offset, ROI_len]
     ROI_len = x_max - x_min
@@ -841,6 +892,7 @@ def validate_and_mark_ROI_regions(x_min, x_max):
 
     # mark ROI on the plot
     XYs.mark_ROI_regions(x_start_offset, ROI_len, syncLineXs)
+    return True
 
 def enableDrawROI():
     enableRectSelector()
