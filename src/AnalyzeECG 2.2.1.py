@@ -206,17 +206,15 @@ class AllRows(object):
         canvas.draw()
 
         # return a ROI object
-        print '----'
-        print 'ys average: ', sum(ret_ys) / len(ret_ys)
-        print 'y_offset: ', y_offset
-        sleep(2)
         return ROI(ret_xs, ret_ys, rectPatch, y_offset, x_ref_pos)
 
     def mark_ROI_regions(self, x_start_offset, ROI_len, syncLineXs):
         x_y_data = self.getCurrentPlotedXYs()
         # ret_ROI_len = None
         x_y_data = x_y_data[1:]
+        x_y_data = reversed(x_y_data)
         hLineYs = h_lines.getYs()
+        hLineYs.reverse()
         row_index = 0
         for row in x_y_data:
             for syncLineX in syncLineXs:
@@ -561,7 +559,7 @@ class HLines(object):
         for eachLine in hlines:
             self.currYs.put(eachLine)
 
-        Ys.sort()
+        Ys.sort()  # the y values return is always from the smallest to the largest
         return Ys
 
     def HorizontalLinesReady(self):
