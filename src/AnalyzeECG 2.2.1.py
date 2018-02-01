@@ -7,6 +7,7 @@ import math
 import Queue
 import logging
 import csv
+from time import sleep
 matplotlib.use('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 from matplotlib.figure import Figure
@@ -82,22 +83,65 @@ class ROI(object):
     ys = None
     rect_handle = None
 
-    def __init__(self, xs, ys, rect_handle):
+    def __init__(self, xs, ys, rect_handle, y_offset, x_ref_pos):
         if(len(xs) != len(ys)):
             print 'For each ROI, the number of x points must equal to the number of y points'
             assert False
         self.xs = xs
         self.ys = ys
+        self.transformed_xs, self.transformed_ys = self.transform_xy(self.xs, self.ys, y_offset, x_ref_pos)
+        # self.transformed_ys
         self.rect_handle = rect_handle
+
+    def transform_xy(self, xs, ys, y_offset, x_ref_pos):
+      index = 0
+      rounder = lambda x: float("{0:.4g}".format(x))
+      x_scale = cali_info.Xscale
+      y_scale = cali_info.Yscale
+      x_s = []
+      y_s = []
+      for x in xs:
+          x -= x_ref_pos
+          x_s.append(rounder(x * x_scale))
+          y_s.append(rounder((ys[index] - y_offset) * y_scale))
+          index += 1
+
+      lastX = x_s[0]
+      x_s = x_s[1:]
+      uniqueXs = [lastX]
+      uniqueYs = [y_s[0]]
+      y_s = y_s[1:]
+      uniqIndex = 0
+      originalIndex = 0
+      for x in x_s:
+          if x == lastX:
+              averagedY = (y_s[originalIndex] + uniqueYs[uniqIndex]) / 2
+              averagedY = rounder(averagedY)
+              uniqueYs[uniqIndex] = averagedY
+          else:
+              uniqueXs.append(x)
+              uniqueYs.append(y_s[originalIndex])
+              uniqIndex += 1
+              lastX = x
+
+          originalIndex += 1
+
+      return uniqueXs, uniqueYs
 
     def get_ROI_len(self):
         return len(self.xs)
 
     def get_xs(self):
-        return self.xs
+      return self.xs
 
     def get_ys(self):
-        return self.ys
+      return self.ys
+
+    def get_transformed_xs(self):
+        return self.transformed_xs
+
+    def get_transformed_ys(self):
+        return self.transformed_ys
 
     def delete(self):
         if self.rect_handle is None:
@@ -140,7 +184,7 @@ class AllRows(object):
 
     # draw a rectange on the canvas and return a list: [xs, ys, handle of the rectangle]
     # return an empty list if it fails
-    def mark_region(self, row, x_start, x_end):
+    def mark_region(self, row, x_start, x_end, x_ref_pos, y_offset):
         ret_xs = list()
         ret_ys = list()
         y_min = row.ys[0]
@@ -162,18 +206,23 @@ class AllRows(object):
         canvas.draw()
 
         # return a ROI object
-        return ROI(ret_xs, ret_ys, rectPatch)
+        print '----'
+        print 'ys average: ', sum(ret_ys) / len(ret_ys)
+        print 'y_offset: ', y_offset
+        sleep(2)
+        return ROI(ret_xs, ret_ys, rectPatch, y_offset, x_ref_pos)
 
     def mark_ROI_regions(self, x_start_offset, ROI_len, syncLineXs):
         x_y_data = self.getCurrentPlotedXYs()
         # ret_ROI_len = None
         x_y_data = x_y_data[1:]
+        hLineYs = h_lines.getYs()
+        row_index = 0
         for row in x_y_data:
-
             for syncLineX in syncLineXs:
                 x_start = syncLineX - x_start_offset
                 x_end = x_start + ROI_len
-                region_interested = self.mark_region(row, x_start, x_end)
+                region_interested = self.mark_region(row, x_start, x_end, syncLineX, hLineYs[row_index])
                 # if ret_ROI_len is None:
                 #   ret_ROI_len = region_interested.get_ROI_len()
                 # else:
@@ -181,6 +230,7 @@ class AllRows(object):
                   # assert ret_ROI_len is region_interested.get_ROI_len()
                 # print 'ROI len: ', ret_ROI_len
                 self.ROIs.append(region_interested)
+            row_index += 1
 
     def save_ROI_regions(self, fd):
         if len(self.ROIs) is 0:
@@ -201,10 +251,10 @@ class AllRows(object):
         # assume the ROI is arranged in the correct order corresponding to the title header
         allLeads = []
         for ROI in self.ROIs:
-            xs = ROI.get_xs()
-            ys = ROI.get_ys()
-            allLeads.append([float(x) for x in xs])
-            allLeads.append([float(y) for y in ys])
+            xs = ROI.get_transformed_xs()
+            ys = ROI.get_transformed_ys()
+            allLeads.append([x for x in xs])
+            allLeads.append([y for y in ys])
         allLeads = zip(*allLeads)
         for eachRow in allLeads:
             writer.writerow(eachRow)
@@ -1204,7 +1254,6 @@ def splitOneRow(row, vLineXs, syncLineXs, yOffset):
             if x == lastX:
                 averagedY = (ys[originalIndex] + uniqueYs[uniqIndex]) / 2
                 averagedY = rounder(averagedY)
-                # averagedY = int(round(averagedY))
                 uniqueYs[uniqIndex] = averagedY
             else:
                 uniqueXs.append(x)
