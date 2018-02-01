@@ -29,6 +29,10 @@ curr_step = STEP_ONE
 disablers = {}
 enablers = {}
 
+save_data_lead_names = ["I", "aVR", "V1", "V4",
+             "II", "aVL", "V2", "V5",
+             "III", "aVF", "V3", "V6"]
+
 WARNING_TITLE = "Warning"
 WARNING_WINDOW_GEOMETRY = "200x100"
 gc.enable()
@@ -117,7 +121,7 @@ class AllRows(object):
         self.inputXY = []
         self.invertedInputXY = []
         self.plotHandles = []
-        self.ROIs = []
+        self.ROIs = []  # a list of ROI objects
 
     def deleteROIs(self):
         if self.ROIs is None:
@@ -697,6 +701,10 @@ def drawRectCallBack(eclick, erelease):
     #
     currOp = selectedOp.get()
     if 'ROI' in currOp:
+        # validate existing data
+        ret = is_data_complete_and_valid()
+        if len(ret) == 0:
+            return
         ROICallBack(eclick, erelease)
 
     elif 'calibration' in currOp:
@@ -798,29 +806,38 @@ def validate_and_mark_ROI_regions(x_min, x_max):
     regions = list()
     for i in range(len(syncLineXs)):
         region = list()
-        region.append(vLineXs[i])
-        region.append(syncLineXs[i])
+        region.append(vLineXs[i])  # blue vertical line
+        region.append(syncLineXs[i])  # green vertical (sync) line
+        region.append(vLineXs[i+1])
         regions.append(region)
 
     # print x_min
     # print x_max
     # check which region is the marked ROI in
     region_start = None
-    region_end = None
+    sync_line_x_pos = None
     for region in regions:
         # print region
-        if (region[0] <= x_min) and (x_max <= region[1]): # found it
-            region_start = region[0]
-            region_end = region[1]
+        # found it to the left of the vertical sync line
+        if (region[0] <= x_min) and (x_max <= region[1]):
+            # region_start = region[0]
+            sync_line_x_pos = region[1]
             break
 
-    if (region_start == None) or (region_end == None):
+        # found it to the right of the vertical sync line
+        if (region[1] <= x_min) and (x_max <= region[2]):
+            # region_start = region[1]
+            sync_line_x_pos = region[1]
+            break
+
+    # if (region_start == None) or (region_end == None):
+    if sync_line_x_pos is None:
         remindWindow('Wait...', 'Invalid ROI')
         return
 
     # transform [x_min, x_max] to [x_start_offset, ROI_len]
     ROI_len = x_max - x_min
-    x_start_offset = region_end - x_min  # how much to the left of the sync line it is
+    x_start_offset = sync_line_x_pos - x_min  # how much to the left of the sync line it is
 
     # mark ROI on the plot
     XYs.mark_ROI_regions(x_start_offset, ROI_len, syncLineXs)
@@ -1044,15 +1061,11 @@ def preSaveDataProcess(fd, vLineXs, syncLineXs, hLineYs):
     # only needs the first 3 rows (the last row is reference)
     # assume rows are sorted already
 
-    leadNames = ["I", "aVR", "V1", "V4",
-                 "II", "aVL", "V2", "V5",
-                 "III", "aVF", "V3", "V6"]
-
     allXyRows = allXyRows[1:]
     allXyRows = reversed(allXyRows)
 
     titleRow = []
-    for leadName in leadNames:
+    for leadName in save_data_lead_names:
         titleRow.append(leadName + ' (X)')
         titleRow.append(leadName + ' (Y)')
     writer.writerow(titleRow)
